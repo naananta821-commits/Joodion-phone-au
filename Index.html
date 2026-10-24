@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Last Shared Album - Interactive Phone AU</title>
+    <style>
+        :root {
+            --bg-color: #000000;
+            --card-bg: #1c1c1e;
+            --card-bg-secondary: #2c2c2e;
+            --text-main: #ffffff;
+            --text-sub: #8e8e93;
+            --accent-blue: #0a84ff;
+            --accent-red: #ff453a;
+            --accent-green: #34c759;
+            --border-color: #38383a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0; padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: #080808;
+            display: flex; justify-content: center; align-items: center;
+            min-height: 100vh; color: var(--text-main);
+        }
+
+        /* Phone Container */
+        .phone-wrapper {
+            width: 100%; max-width: 390px; height: 844px;
+            background-color: var(--bg-color);
+            border-radius: 40px; overflow: hidden; position: relative;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.95), 0 0 0 12px #262626;
+            display: flex; flex-direction: column;
+        }
+
+        @media (max-height: 850px) {
+            .phone-wrapper { height: 100vh; border-radius: 0; box-shadow: none; }
+        }
+
+        /* Status Bar */
+        .status-bar {
+            height: 44px; padding: 0 24px; display: flex;
+            justify-content: space-between; align-items: flex-end; padding-bottom: 8px;
+            font-size: 14px; font-weight: 600; z-index: 1000;
+            background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(12px);
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: absolute; top: 50px; left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: rgba(44, 44, 46, 0.95); color: #fff;
+            padding: 10px 18px; border-radius: 20px; font-size: 12px; font-weight: 500;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 2500; border: 1px solid var(--border-color); text-align: center;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+        }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+
+        /* Screen Controller */
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; flex-direction: column; padding-top: 44px;
+            background-color: var(--bg-color);
+        }
+        .screen.active { display: flex; }
+
+        /* 1. LOCKSCREEN */
+        #screen-lock {
+            background-color: #121212;
+            background-size: cover; background-position: center;
+            justify-content: space-between; padding-bottom: 30px; z-index: 900;
+        }
+
+        .lock-header { text-align: center; margin-top: 15px; }
+        .lock-date { font-size: 15px; color: rgba(255,255,255,0.85); font-weight: 500; }
+        .lock-time { font-size: 72px; font-weight: 200; line-height: 1; letter-spacing: -2px; }
+
+        .lock-notifications {
+            padding: 0 16px; display: flex; flex-direction: column; gap: 8px;
+            margin-top: 10px; max-height: 270px; overflow-y: auto;
+        }
+
+        .notif-card {
+            background: rgba(28, 28, 30, 0.75); backdrop-filter: blur(20px);
+            border-radius: 16px; padding: 12px 14px; border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .notif-card.urgent { border-left: 4px solid var(--accent-red); }
+
+        .notif-header { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-sub); margin-bottom: 4px; text-transform: uppercase; }
+        .notif-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+        .notif-body { font-size: 12px; color: rgba(255, 255, 255, 0.9); line-height: 1.3; }
+
+        .passcode-container { display: flex; flex-direction: column; align-items: center; gap: 16px; margin-top: auto; }
+        .passcode-dots { display: flex; gap: 16px; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.5); }
+        .dot.filled { background-color: #fff; border-color: #fff; }
+
+        .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 24px; width: 280px; }
+        .key {
+            width: 68px; height: 68px; border-radius: 50%;
+            background: rgba(255, 255, 255, 0.12); backdrop-filter: blur(10px);
+            display: flex; justify-content: center; align-items: center;
+            font-size: 26px; cursor: pointer; margin: 0 auto;
+        }
+
+        /* 2. HOME SCREEN */
+        #screen-home { background: radial-gradient(circle at bottom left, #121d24, #000); padding: 20px; }
+        .app-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px 14px; margin-top: 25px; }
+        .app-item { display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
+        .app-icon {
+            width: 60px; height: 60px; border-radius: 14px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 26px; position: relative; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        .badge {
+            position: absolute; top: -4px; right: -4px;
+            background: var(--accent-red); color: #fff; font-size: 11px; font-weight: 700;
+            width: 20px; height: 20px; border-radius: 50%; display: flex; justify-content: center; align-items: center;
+        }
+
+        /* 3. COMMON APP LAYOUT */
+        .app-screen { background-color: var(--bg-color); height: 100%; display: flex; flex-direction: column; }
+        .app-bar {
+            height: 50px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 0.5px solid var(--border-color); background: rgba(20,20,20,0.85); backdrop-filter: blur(10px);
+        }
+        .back-btn { color: var(--accent-blue); cursor: pointer; font-size: 15px; }
+        .app-content { flex: 1; overflow-y: auto; padding: 16px; }
+
+        /* 4. PHOTOS APP (UPLOAD FOTO MANDIRI) */
+        .photo-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
+        .photo-card { background: var(--card-bg); border-radius: 12px; overflow: hidden; border: 0.5px solid var(--border-color); position: relative; }
+        
+        .photo-img-box {
+            width: 100%; height: 110px; background-size: cover; background-position: center;
+            background-color: var(--card-bg-secondary); position: relative;
+            display: flex; justify-content: center; align-items: center; color: var(--text-sub);
+        }
+
+        .upload-btn-overlay {
+            position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,0.7);
+            color: #fff; font-size: 10px; padding: 4px 8px; border-radius: 8px;
+            cursor: pointer; border: 0.5px solid var(--border-color);
+        }
+
+        .photo-caption { padding: 8px; font-size: 11px; line-height: 1.4; color: var(--text-main); }
+        .photo-date { font-size: 9px; color: var(--text-sub); margin-top: 4px; display: block; }
+
+        .file-input { display: none; }
+
+        /* 5. MESSAGES & AUDIO */
+        .chat-list { display: flex; flex-direction: column; }
+        .chat-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 0.5px solid var(--border-color); cursor: pointer; }
+        .chat-avatar { width: 46px; height: 46px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 18px; font-weight: 600; }
+        .messages-container { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+        .message-bubble { max-width: 80%; padding: 10px 14px; border-radius: 18px; font-size: 13px; line-height: 1.4; }
+        .message-incoming { background-color: var(--card-bg-secondary); align-self: flex-start; border-bottom-left-radius: 4px; }
+        .message-outgoing { background-color: var(--accent-blue); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+        .message-time { font-size: 9px; opacity: 0.7; margin-top: 4px; text-align: right; }
+
+        .audio-bubble {
+            display: flex; align-items: center; gap: 10px; background: #222;
+            border: 1px solid var(--accent-red); padding: 10px 14px; border-radius: 16px; width: 220px;
+        }
+        .play-btn { width: 30px; height: 30px; border-radius: 50%; background: var(--accent-red); display: flex; justify-content: center; align-items: center; cursor: pointer; font-size: 12px; }
+
+        /* 6. TWITTER LOCK APP */
+        .tweet-card { background: var(--card-bg); border: 0.5px solid var(--border-color); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+
+        /* 7. INCOMING CALL SCREEN */
+        #screen-incoming-call {
+            background: rgba(10, 10, 12, 0.98); justify-content: space-between; align-items: center;
+            padding: 60px 20px 80px 20px; z-index: 3000;
+        }
+
+        .call-avatar {
+            width: 100px; height: 100px; border-radius: 50%; background: #2c2c2e;
+            margin: 0 auto 16px; display: flex; justify-content: center; align-items: center;
+            font-size: 40px; border: 2px solid var(--accent-blue);
+            box-shadow: 0 0 20px rgba(10, 132, 255, 0.3);
+        }
+
+        /* 8. NOTES & ENDING CHOICE */
+        .choice-box {
+            margin-top: 25px; padding: 16px; background: var(--card-bg);
+            border-radius: 14px; border: 1px solid var(--accent-blue); text-align: center;
+        }
+        .choice-btn {
+            width: 100%; padding: 12px; margin-top: 8px; border-radius: 10px;
+            border: none; font-size: 12px; font-weight: 600; cursor: pointer;
+        }
+
+        .modal-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);
+            display: none; justify-content: center; align-items: center; z-index: 2000; padding: 20px;
+        }
+        .modal-card { background: var(--card-bg); padding: 20px; border-radius: 16px; width: 100%; max-width: 300px; text-align: center; border: 0.5px solid var(--border-color); }
+        .modal-input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--card-bg-secondary); color: #fff; text-align: center; font-size: 14px; margin: 12px 0; outline: none; }
+    </style>
+</head>
+<body>
+
+<div class="phone-wrapper">
+    <!-- Status Bar -->
+    <div class="status-bar">
+        <span>02:17</span>
+        <div><span>5G</span> <span>100%</span></div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">Toast Message</div>
+
+    <!-- 1. LOCKSCREEN -->
+    <div id="screen-lock" class="screen active">
+        <!-- Input Upload Foto Wallpaper Lockscreen -->
+        <input type="file" id="input-lock-bg" class="file-input" accept="image/*" onchange="uploadImage(event, 'screen-lock', true)">
+        <button class="upload-btn-overlay" style="top: 50px; left: 16px; right: auto;" onclick="document.getElementById('input-lock-bg').click()">📷 Edit Wallpaper</button>
+
+        <div class="lock-header">
+            <div class="lock-date">Sabtu, 24 Oktober</div>
+            <div class="lock-time">02:17</div>
+        </div>
+
+        <div class="lock-notifications">
+            <div class="notif-card urgent" onclick="showToast('Buka kunci HP terlebih dahulu')">
+                <div class="notif-header"><span>Phone • Panggilan Terlewat</span><span>02:14 AM</span></div>
+                <div class="notif-title">Joo (1)</div>
+                <div class="notif-body">Panggilan terlewat dari Joo (dibatalkan setelah 3 detik)</div>
+            </div>
+            <div class="notif-card" onclick="showToast('Buka kunci HP terlebih dahulu')">
+                <div class="notif-header"><span>Messages • Unknown</span><span>Baru saja</span></div>
+                <div class="notif-title">Unknown</div>
+                <div class="notif-body">Dia tahan nangis di kamar cuma biar gak telepon kamu. Kalian berdua sama-sama gila.</div>
+            </div>
+            <div class="notif-card" onclick="showToast('Buka kunci HP terlebih dahulu')">
+                <div class="notif-header"><span>X • @joo_lock</span><span>10 mnt lalu</span></div>
+                <div class="notif-title">Joo 🔒</div>
+                <div class="notif-body">"rumah gue sepi banget tanpa lo."</div>
+            </div>
+        </div>
+
+        <div class="passcode-container">
+            <div class="passcode-dots" id="passcode-dots">
+                <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+            </div>
+            <div class="keypad">
+                <div class="key" onclick="pressKey('1')">1</div>
+                <div class="key" onclick="pressKey('2')">2</div>
+                <div class="key" onclick="pressKey('3')">3</div>
+                <div class="key" onclick="pressKey('4')">4</div>
+                <div class="key" onclick="pressKey('5')">5</div>
+                <div class="key" onclick="pressKey('6')">6</div>
+                <div class="key" onclick="pressKey('7')">7</div>
+                <div class="key" onclick="pressKey('8')">8</div>
+                <div class="key" onclick="pressKey('9')">9</div>
+                <div></div>
+                <div class="key" onclick="pressKey('0')">0</div>
+                <div class="key" onclick="pressKey('del')">⌫</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. HOME SCREEN -->
+    <div id="screen-home" class="screen">
+        <div style="margin: 15px 0 25px 0; font-size: 24px; font-weight: 700;">HP Dion</div>
+        <div class="app-grid">
+            <div class="app-item" onclick="openScreen('screen-photos')">
+                <div class="app-icon" style="background: linear-gradient(135deg, #ff9500, #ff2d55, #5856d6);">🖼️<div class="badge">1</div></div>
+                <span style="font-size: 11px;">Photos</span>
+            </div>
+            <div class="app-item" onclick="openScreen('screen-messages')">
+                <div class="app-icon" style="background: linear-gradient(135deg, #34c759, #11998e);">💬<div class="badge">3</div></div>
+                <span style="font-size: 11px;">Messages</span>
+            </div>
+            <div class="app-item" onclick="openScreen('screen-twitter')">
+                <div class="app-icon" style="background: #000; border: 1px solid #333;">🔒<div class="badge">2</div></div>
+                <span style="font-size: 11px;">X (Lock)</span>
+            </div>
+            <div class="app-item" onclick="openScreen('screen-notes')">
+                <div class="app-icon" style="background: linear-gradient(135deg, #ffcc00, #ff9500);">📝</div>
+                <span style="font-size: 11px;">Notes</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. PHOTOS APP -->
+    <div id="screen-photos" class="screen">
+        <div class="app-screen">
+            <div class="app-bar">
+                <div class="back-btn" onclick="openScreen('screen-home')">‹ Home</div>
+                <div style="font-weight: 600;">Photos</div>
+                <div style="width: 40px;"></div>
+            </div>
+            <div class="app-content">
+                <div style="font-size: 20px; font-weight: 700; margin-bottom: 2px;">JD – Jangan Dihapus Dulu</div>
+                <div style="font-size: 12px; color: var(--text-sub); margin-bottom: 16px;">Shared Album • Dion & Joo</div>
+
+                <div style="font-size: 12px; font-weight: 600; color: var(--accent-blue); margin-bottom: 10px;">🔒 BEFORE</div>
+                <div class="photo-grid">
+                    <div class="photo-card">
+                        <input type="file" id="img-input-1" class="file-input" accept="image/*" onchange="uploadImage(event, 'img-box-1')">
+                        <div class="photo-img-box" id="img-box-1">
+                            🖼️
+                            <button class="upload-btn-overlay" onclick="document.getElementById('img-input-1').click()">Edit Foto</button>
+                        </div>
+                        <div class="photo-caption">
+                            “berisik banget dengkurannya tapi males pindah, hangatnya pas.”
+                            <span class="photo-date">12 Agustus 2026</span>
+                        </div>
+                    </div>
+
+                    <div class="photo-card">
+                        <input type="file" id="img-input-2" class="file-input" accept="image/*" onchange="uploadImage(event, 'img-box-2')">
+                        <div class="photo-img-box" id="img-box-2">
+                            🖼️
+                            <button class="upload-btn-overlay" onclick="document.getElementById('img-input-2').click()">Edit Foto</button>
+                        </div>
+                        <div class="photo-caption">
+                            “biar enggak ada yang lihat kalau aku lagi butuh penguat.”
+                            <span class="photo-date">04 September 2026</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="font-size: 12px; font-weight: 600; color: var(--accent-red); margin-bottom: 10px;">💔 AFTER (POST 19 OCT 2026)</div>
+                <div class="photo-grid" style="grid-template-columns: 1fr;">
+                    <div class="photo-card">
+                        <input type="file" id="img-input-3" class="file-input" accept="image/*" onchange="uploadImage(event, 'img-box-3')">
+                        <div class="photo-img-box" id="img-box-3" style="height: 90px;">
+                            🌌
+                            <button class="upload-btn-overlay" onclick="document.getElementById('img-input-3').click()">Edit Foto</button>
+                        </div>
+                        <div class="photo-caption">
+                            “sepi banget tanpa suara napas kamu di samping aku...”
+                            <span class="photo-date">20 Oktober 2026 • 03:40 AM</span>
+                        </div>
+                    </div>
+
+                    <div class="photo-card" style="border: 1px solid var(--accent-red);">
+                        <input type="file" id="img-input-4" class="file-input" accept="image/*" onchange="uploadImage(event, 'img-box-4')">
+                        <div class="photo-img-box" id="img-box-4" style="height: 100px;">
+                            📱
+                            <button class="upload-btn-overlay" onclick="document.getElementById('img-input-4').click()">Edit Foto</button>
+                        </div>
+                        <div class="photo-caption" style="font-weight: 600;">
+                            “aku tahu kamu juga lagi buka album ini kan, Joo? kalau suatu hari aku cukup kuat, aku bakal hapus. tapi hari ini aku masih terlalu sayang.”
+                            <span class="photo-date">24 Oktober 2026 • 02:14 AM</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. MESSAGES APP -->
+    <div id="screen-messages" class="screen">
+        <div class="app-screen">
+            <div class="app-bar">
+                <div class="back-btn" onclick="openScreen('screen-home')">‹ Home</div>
+                <div style="font-weight: 600;">Messages</div>
+                <div style="width: 40px;"></div>
+            </div>
+            <div class="app-content" style="padding: 0 16px;">
+                <div class="chat-list">
+                    <div class="chat-item" onclick="openScreen('screen-chat-unknown')">
+                        <div class="chat-avatar" style="background: var(--accent-red); color: #fff;">?</div>
+                        <div style="flex: 1;">
+                            <div style="display: flex; justify-content: space-between;"><span style="font-size: 15px; font-weight: 600;">Unknown</span><span style="font-size: 11px; color: var(--text-sub);">02:17</span></div>
+                            <div style="font-size: 12px; color: var(--text-sub);">▶ Voice Note (0:04) - "Dengerin napasnya."</div>
+                        </div>
+                    </div>
+                    <div class="chat-item" onclick="openScreen('screen-chat-joo')">
+                        <div class="chat-avatar" style="background: var(--accent-blue); color: #fff;">J</div>
+                        <div style="flex: 1;">
+                            <div style="display: flex; justify-content: space-between;"><span style="font-size: 15px; font-weight: 600;">Joo</span><span style="font-size: 11px; color: var(--text-sub);">02:02</span></div>
+                            <div style="font-size: 12px; color: var(--text-sub);">...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CHAT UNKNOWN -->
+    <div id="screen-chat-unknown" class="screen">
+        <div class="app-screen">
+            <div class="app-bar">
+                <div class="back-btn" onclick="openScreen('screen-messages')">‹ Messages</div>
+                <div style="font-weight: 600;">Unknown</div>
+                <div style="width: 40px;"></div>
+            </div>
+            <div class="messages-container">
+                <div class="message-bubble message-incoming">
+                    Joo ngetik pesan "Aku kangen banget, Dion" selama 10 menit barusan. Tapi dihapus lagi karena takut ngerusak masa depan kamu.
+                    <div class="message-time">02:05 AM</div>
+                </div>
+                <div class="message-bubble message-incoming">
+                    Nih, gue kirim bukti rekaman suara kamar dia detik ini.
+                    <div class="message-time">02:08 AM</div>
+                </div>
+                
+                <div class="audio-bubble" onclick="playFakeAudio()">
+                    <div class="play-btn" id="play-icon">▶</div>
+                    <div style="flex: 1; height: 12px; background: #444; border-radius: 6px;"></div>
+                    <span style="font-size: 10px; color: #aaa;">0:04</span>
+                </div>
+
+                <div class="message-bubble message-incoming">
+                    Dia tahan nangis di kamar cuma biar gak telepon kamu. Kalian berdua sama-sama gila karena saling terlalu sayang.
+                    <div class="message-time">02:15 AM</div>
+                </div>
+                <div class="message-bubble message-incoming" style="border: 1px solid var(--accent-red);">
+                    Kalau kalian sama-sama pengecut buat melanggar janji, biar gue yang bocorin isi album ini ke publik.
+                    <div class="message-time">02:17 AM</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CHAT JOO -->
+    <div id="screen-chat-joo" class="screen">
+        <div class="app-screen">
+            <div class="app-bar">
+                <div class="back-btn" onclick="openScreen('screen-messages')">‹ Messages</div>
+                <div style="font-weight: 600;">Joo</div>
+                <!-- Tombol Memicu Telepon Masuk Dari Joo -->
+                <button style="background: none; border: none; color: var(--accent-green); font-size: 18px; cursor: pointer;" onclick="triggerIncomingCall()">📞</button>
+            </div>
+            <div class="messages-container">
+                <div class="message-bubble message-outgoing">
+                    Udah makan?
+                    <div class="message-time">23 Okt • 20:11</div>
+                </div>
+                <div class="message-bubble message-incoming">
+                    Udah. Kamu?
+                    <div class="message-time">23 Okt • 20:45</div>
+                </div>
+                <div class="message-bubble message-outgoing">
+                    Udah juga. Jangan lupa minum obatmu.
+                    <div class="message-time">23 Okt • 20:46</div>
+                </div>
+                <div class="message-bubble message-incoming">
+                    ...
+                    <div class="message-time">24 Okt • 02:02 AM</div>
+                </div>
+                <div class="message-bubble message-outgoing">
+                    ...
+                    <div class="message-time">24 Okt • 02:03 AM</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. TWITTER LOCK -->
+    <div id="screen-twitter" class="screen">
+        <div class="app-screen">
+            <div class="app-bar">
+                <div class="back-btn" onclick="openScreen('screen-home')">‹ Home</div>
+                <div style="font-weight: 600;">Lock Feed</div>
+                <div style="width: 40px;"></div>
+            </div>
+            <div class="app-content">
+                <div class="tweet-card">
+                    <div style="font-size: 13px; font-weight: 700;">Dion 🔒 <span style="font-weight: 400; color: var(--text-sub); font-size: 11px;">@dion_private</span></div>
+                    <div style="font-size: 13px; margin: 8px 0;">Capek banget pura-pura senyum di depan kamera, padahal pas balik kamar langsung nyariin bau kamu di jaket.</div>
+                    <div style="font-size: 10px; color: var(--text-sub);">23 Okt • 23:45</div>
+                </div>
+                <div class="tweet-card" style="border-left: 3px solid var(--accent-blue);">
+                    <div style="font-size: 13px; font-weight: 700;">Joo 🔒 <span style="font-weight: 400; color: var(--text-sub); font-size: 11px;">@joo_lock</span></div>
+                    <div style="font-size: 13px; margin: 8px 0;">rumah gue sepi banget tanpa lo. kangennya nyiksa banget Dion.</div>
+                    <div style="font-size: 10px; color: var(--text-sub);">24 Okt • 02:07 AM</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. LAYAR TELEPON MASUK (INCOMING CALL SCREEN) -->
+    <div id="screen-incoming-call" class="screen">
+        <div style="text-align: center; margin-top: 40px;">
+            <div class="call-avatar">J</div>
+            <div style="font-size: 24px; font-weight: 700;">Joo</div>
+            <div id="call-status" style="font-size: 14px; color: var(--text-sub); margin-top: 6px;">Panggilan Masuk...</div>
+        </div>
+
+        <audio id="call-audio-src" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"></audio>
+
+        <div style="display: flex; gap: 60px; margin-bottom: 50px;" id="call-action-buttons">
+            <div onclick="declineCall()" style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;">
+                <div style="width: 65px; height: 65px; border-radius: 50%; background: var(--accent-red); display: flex; justify-content: center; align-items: center; font-size: 24px;">🚫</div>
+                <span style="font-size: 12px; color: var(--text-sub);">Tolak</span>
+            </div>
+            <div onclick="acceptCall()" style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;">
+                <div style="width: 65px; height: 65px; border-radius: 50%; background: var(--accent-green); display: flex; justify-content: center; align-items: center; font-size: 24px;">📞</div>
+                <span style="font-size: 12px; color: var(--text-sub);">Angkat</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 7. NOTES APP -->
+    <div id="screen-notes" class="screen">
+        <div class="app-screen">
+            <div class="app-bar">
+                <div class="back-btn" onclick="openScreen('screen-home')">‹ Home</div>
+                <div style="font-weight: 600;">Notes</div>
+                <div style="width: 40px;"></div>
+            </div>
+            <div class="app-content">
+                <div style="background: var(--card-bg); padding: 14px; border-radius: 10px; border: 0.5px solid var(--border-color); cursor: pointer;" onclick="openNotesLock()">
+                    <div style="font-size: 15px; font-weight: 600;">🔒 Perjanjian</div>
+                    <div style="font-size: 12px; color: var(--text-sub);">Catatan terkunci • Membutuhkan kata sandi</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NOTE DETAIL VIEW -->
+    <div id="screen-note-detail" class="screen">
+        <div class="app-screen">
+            <div class="app-bar">
+                <div class="back-btn" onclick="openScreen('screen-notes')">‹ Notes</div>
+                <div style="font-weight: 600;">Perjanjian</div>
+                <div style="width: 40px;"></div>
+            </div>
+            <div class="app-content">
+                <div style="font-size: 13px; line-height: 1.6; color: #e0e0e0; white-space: pre-wrap;">
+Kita jangan saling hubungi dulu.  
+Biar masing-masing fokus dan aman.  
+Kalau suatu hari kita masih mau… baru kita omongin lagi.  
+
+Janji ya, demi masa depan kita.  
+
+– Joo & Dion  
+19.10.2026 03.12
+
+————————————————
+
+Aku capek pura-pura baik-baik aja dan senyum di depan kamera.  
+Aku capek nungguin notifikasi nama kamu yang enggak bakal pernah bunyi lagi.  
+
+Aku masih sayang banget sama kamu, Joo.  
+Tapi aku enggak mau jadi orang yang ngerusak masa depan kamu duluan.  
+
+Kalau aku melanggar janji malam ini...  
+Kamu bakal marah karena aku lemah, atau kamu bakal meluk aku balik?
+                </div>
+
+                <div class="choice-box">
+                    <div style="font-size: 13px; font-weight: 700; color: var(--accent-blue); margin-bottom: 8px;">TENTUKAN KEPUTUSAN DION:</div>
+                    <button class="choice-btn" style="background: var(--accent-blue); color: #fff;" onclick="selectEnding('A')">Opsi A: Menahan Diri (Tunggu Aku di Puncak)</button>
+                    <button class="choice-btn" style="background: var(--accent-red); color: #fff;" onclick="selectEnding('B')">Opsi B: Melanggar Janji (Orang Asing dengan Kenangan)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ENDING DISPLAY SCREEN -->
+    <div id="screen-ending" class="screen">
+        <div class="app-screen">
+            <div class="app-bar">
+                <div class="back-btn" onclick="openScreen('screen-note-detail')">‹ Kembali</div>
+                <div style="font-weight: 600;">Ending Story</div>
+                <div style="width: 40px;"></div>
+            </div>
+            <div class="app-content" id="ending-text-content" style="padding-top: 30px;"></div>
+        </div>
+    </div>
+
+    <!-- Modal Lock Notes -->
+    <div id="modal-notes" class="modal-overlay">
+        <div class="modal-card">
+            <div style="font-size: 16px; font-weight: 600; margin-bottom: 6px;">Catatan Terkunci</div>
+            <div style="font-size: 12px; color: var(--text-sub);">Masukkan password "Perjanjian"</div>
+            <input type="password" id="notes-pass-input" class="modal-input" placeholder="Password">
+            <div style="display: flex; gap: 10px;">
+                <button class="choice-btn" style="background: var(--card-bg-secondary); color: #fff;" onclick="closeNotesModal()">Batal</button>
+                <button class="choice-btn" style="background: var(--accent-blue); color: #fff;" onclick="unlockNotes()">Buka</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    let currentPasscode = "";
+    const correctPasscode = "11221";
+    const correctNotesPass = "jangandulu";
+
+    let callTimer;
+    let callSeconds = 0;
+
+    function showToast(msg) {
+        const toast = document.getElementById("toast");
+        toast.innerText = msg; toast.classList.add("show");
+        setTimeout(() => toast.classList.remove("show"), 2500);
+    }
+
+    function pressKey(key) {
+        const dots = document.querySelectorAll("#passcode-dots .dot");
+        if (key === 'del') { if (currentPasscode.length > 0) currentPasscode = currentPasscode.slice(0, -1); }
+        else { if (currentPasscode.length < 5) currentPasscode += key; }
+
+        dots.forEach((dot, i) => {
+            if (i < currentPasscode.length) dot.classList.add("filled");
+            else dot.classList.remove("filled");
+        });
+
+        if (currentPasscode.length === 5) {
+            if (currentPasscode === correctPasscode) {
+                setTimeout(() => { openScreen('screen-home'); currentPasscode = ""; dots.forEach(d => d.classList.remove("filled")); }, 200);
+            } else {
+                setTimeout(() => { showToast("Password salah"); currentPasscode = ""; dots.forEach(d => d.classList.remove("filled")); }, 200);
+            }
+        }
+    }
+
+    function openScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
+
+    /* UPLOAD FOTO */
+    function uploadImage(event, targetId, isBackground = false) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const element = document.getElementById(targetId);
+                if (isBackground) {
+                    element.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.85)), url('${e.target.result}')`;
+                } else {
+                    element.style.backgroundImage = `url('${e.target.result}')`;
+                    element.style.color = 'transparent';
+                }
+                showToast("📷 Foto berhasil diperbarui!");
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    /* TELEPON MASUK LOGIC */
+    function triggerIncomingCall() {
+        document.getElementById('call-status').innerText = "Panggilan Masuk...";
+        document.getElementById('call-action-buttons').style.display = 'flex';
+        openScreen('screen-incoming-call');
+    }
+
+    function acceptCall() {
+        const audio = document.getElementById('call-audio-src');
+        audio.play().catch(() => {});
+        document.getElementById('call-action-buttons').style.display = 'none';
+        
+        callSeconds = 0;
+        callTimer = setInterval(() => {
+            callSeconds++;
+            let mins = Math.floor(callSeconds / 60);
+            let secs = callSeconds % 60;
+            document.getElementById('call-status').innerText = 
+                `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        }, 1000);
+
+        showToast("📞 Panggilan terhubung dengan Joo");
+
+        setTimeout(() => { declineCall(); }, 10000);
+    }
+
+    function declineCall() {
+        const audio = document.getElementById('call-audio-src');
+        audio.pause();
+        audio.currentTime = 0;
+        clearInterval(callTimer);
+        showToast("Panggilan diakhiri");
+        openScreen('screen-chat-joo');
+    }
+
+    function playFakeAudio() {
+        const icon = document.getElementById("play-icon");
+        icon.innerText = "⏸";
+        showToast("🔊 Memutar: Suara napas & isakan ketahan Joo (0:04)");
+        setTimeout(() => { icon.innerText = "▶"; }, 4000);
+    }
+
+    function openNotesLock() {
+        document.getElementById('modal-notes').style.display = 'flex';
+        document.getElementById('notes-pass-input').value = '';
+    }
+
+    function closeNotesModal() {
+        document.getElementById('modal-notes').style.display = 'none';
+    }
+
+    function unlockNotes() {
+        const inputPass = document.getElementById('notes-pass-input').value;
+        if (inputPass === correctNotesPass) {
+            closeNotesModal();
+            openScreen('screen-note-detail');
+        } else {
+            showToast("Password Notes Salah");
+        }
+    }
+
+    /* LOGIKA PILIHAN ENDING KONTRAS */
+    function selectEnding(option) {
+        const endingContainer = document.getElementById('ending-text-content');
+        if (option === 'A') {
+            endingContainer.innerHTML = `
+                <div style="font-size: 40px; text-align: center; margin-bottom: 10px;">🌟</div>
+                <h3 style="color: var(--accent-blue); text-align: center; margin-bottom: 15px;">ENDING A: "Tunggu Aku di Puncak"</h3>
+                <p style="font-size: 13px; line-height: 1.6; color: #ccc;">
+                    Dion memilih untuk menahan diri dan menutup aplikasi telepon. Dia membiarkan janji itu tetap utuh demi masa depan Joo.<br><br>
+                    Tiba-tiba, notifikasi <i>Shared Album</i> berbunyi pada pukul 02:22 AM. Joo baru saja menambahkan satu foto baru di bagian paling bawah album dengan tulisan:<br><br>
+                    <i style="color: #fff; background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px; display: block;">
+                    “Fokus sama mimpi kamu dulu ya. Aku bakal kerja keras sampai puncak, biar nanti enggak ada lagi agensi atau siapa pun yang bisa larang aku dekat sama kamu. Jangan berpaling ya... tunggu aku balik.”
+                    </i><br>
+                    Dion tersenyum kecil di tengah usapan air matanya. Dia tahu, perpisahan ini bukan akhir, melainkan janji untuk bertemu lagi di tempat yang lebih baik.
+                </p>
+            `;
+        } else if (option === 'B') {
+            endingContainer.innerHTML = `
+                <div style="font-size: 40px; text-align: center; margin-bottom: 10px;">💔</div>
+                <h3 style="color: var(--accent-red); text-align: center; margin-bottom: 15px;">ENDING B: "Orang Asing dengan Kenangan"</h3>
+                <p style="font-size: 13px; line-height: 1.6; color: #ccc;">
+                    Dion tidak kuat menahan rindu dan nekat menekan tombol panggil ke nomor Joo pada pukul 02:20 AM.<br><br>
+                    Telepon diangkat pada dering ketiga. Namun, bukannya rasa hangat yang didapat, suara Joo di seberang sana terdengar sangat kaku dan berjarak:<br><br>
+                    <i style="color: #ff8888; background: rgba(255,0,0,0.1); padding: 10px; border-radius: 8px; display: block;">
+                    “Dion... jangan kayak gini. Kita udah sepakat sama perjanjian itu, kan? Tolong jangan bikin semuanya makin berat. Hapus albumnya, fokus ke jalan masing-masing.”
+                    </i><br>
+                    <i>*Tut... tut... tut...*</i><br><br>
+                    Panggilan dimatikan secara sepihak oleh Joo. Dion terduduk diam di pinggir kasur, menyadari bahwa melanggar janji justru membuktikan kalau Joo sudah benar-benar siap untuk melupakannya.
+                </p>
+            `;
+        }
+        openScreen('screen-ending');
+    }
+</script>
+</body>
+</html>
